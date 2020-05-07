@@ -251,7 +251,14 @@ class MainActivity : AppCompatActivity() {
      * Displays play again dialog
      */
     private fun showResultDialog() {
-        val resultMessage = "Right guesses: $rightCount\nWrong guesses: $wrongCount\n"
+        val randomNumber = (0..9).random()
+        var comment = ""
+        if (rightCount > wrongCount) {
+            comment = Constants.WE_WIN[randomNumber]
+        } else {
+            comment = Constants.I_GUESSED_WRONG[randomNumber]
+        }
+        val resultMessage = "Right guesses: $rightCount\nWrong guesses: $wrongCount\n\n$comment\n\n"
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Results")
         builder.setMessage("$resultMessage Do you want to play again?")
