@@ -83,15 +83,14 @@ class MainActivity : AppCompatActivity() {
                 // When request is cancelled, the results array are empty
                 if (grantResults.size > 0 &&
                     ((grantResults[0]
-                            + grantResults[1]
-                            + grantResults[2])
+                            + grantResults[1])
                             == PackageManager.PERMISSION_GRANTED)) {
                     // Permissions are granted
-                    Toast.makeText( this@MainActivity, "Permissions granted.", Toast.LENGTH_SHORT).show()
+//                    Toast.makeText( this@MainActivity, "Permissions granted.", Toast.LENGTH_SHORT).show()
                     showStartDialog()
                 } else {
                     // Permissions are denied
-                    Toast.makeText(this@MainActivity, "Permissions denied.", Toast.LENGTH_SHORT).show()
+//                    Toast.makeText(this@MainActivity, "Permissions denied.", Toast.LENGTH_SHORT).show()
                 }
                 return
             }
@@ -225,7 +224,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             // Permission has already been granted
-            Toast.makeText(this@MainActivity,"Permissions already granted",Toast.LENGTH_SHORT).show()
+//            Toast.makeText(this@MainActivity,"Permissions already granted",Toast.LENGTH_SHORT).show()
             showStartDialog()
         }
     }
