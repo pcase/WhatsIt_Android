@@ -1,11 +1,13 @@
 package com.azurehorsecreations.whatsit
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
+import android.net.NetworkInfo
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -13,6 +15,8 @@ import android.provider.MediaStore
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -40,11 +44,12 @@ import java.io.*
 /**
  * Main activity for Whatsit
  */
-class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityReceiverListener, LifecycleObserver {
+class MainActivity : AppCompatActivity(), LifecycleObserver {
 
     private var photoFile: File? = null
     private var rightCount = 0
     private var wrongCount = 0
+    private lateinit var progressBar: ProgressBar
 
     companion object {
         private const val PERMISSIONS_CODE = 4
@@ -88,13 +93,15 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        registerReceiver(ConnectivityReceiver(),
-            IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
-        )
+        progressBar = findViewById(R.id.progressBar3)
+        progressBar.visibility = View.INVISIBLE
 
-        ProcessLifecycleOwner.get().getLifecycle().addObserver(this@MainActivity);
-
-        checkPermissions()
+        if (!isConnected()) {
+            showNoNetworkDialog()
+        } else {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(this@MainActivity);
+            checkPermissions()
+        }
     }
 
     override fun onRestart() {
@@ -103,6 +110,10 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
     }
 
     override fun onStop() {
@@ -147,7 +158,7 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
         when (requestCode) {
             PERMISSIONS_CODE -> {
                 // When request is cancelled, the results array are empty
-                if (grantResults.size > 0 &&
+                if (grantResults.isNotEmpty() &&
                     ((grantResults[0]
                             + grantResults[1])
                             == PackageManager.PERMISSION_GRANTED)) {
@@ -203,9 +214,14 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
                 var result: ClassifiedImages?
 
                 // Classify the image
+
+                progressBar.visibility = View.VISIBLE
+
                 GlobalScope.launch(Dispatchers.IO) {
                    result = service.classify(classifyOptions).execute()
 
+                    progressBar.visibility = View.INVISIBLE
+                    
                     // Parse the results
                     val gson = Gson()
                     val json: String = gson.toJson(result)
@@ -221,7 +237,6 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
 
                     // Get the top guess
                     guess = jsonObject3.getString("class")
-
 
                     // Display the guess in a dialog
                     runOnUiThread() {
@@ -295,15 +310,15 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
     /**
      * Displays start of game dialog
      */
-    fun showStartDialog() {
+    private fun showStartDialog() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("WhatsIt")
-        builder.setMessage("I'm an artificial intelligence being. Want to see how smart I am?. You show me a picture, and I'll guess what it is.")
-        builder.setPositiveButton("I'll play") { dialog, which ->
+        builder.setMessage("I'm an artificial intelligence being. Want to see how smart I am?. You show me a picture, and I'll guess what it is.\n\nWould you like to play?")
+        builder.setPositiveButton("Yes") { dialog, _ ->
             dialog.dismiss()
             showPickImageSourceDialog()
         }
-        builder.setNegativeButton("I'll skip") { dialog, which ->
+        builder.setNegativeButton("No") { dialog, _ ->
             dialog.dismiss()
         }
         builder.show()
@@ -315,22 +330,22 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
     private fun showResultDialog() {
         val randomNumber = (0..9).random()
         var comment: String
-        if (rightCount > wrongCount) {
-            comment = Constants.WE_WIN[randomNumber]
+        comment = if (rightCount > wrongCount) {
+            Constants.WE_WIN[randomNumber]
         } else {
-            comment = Constants.I_GUESSED_WRONG[randomNumber]
+            Constants.I_GUESSED_WRONG[randomNumber]
         }
         val resultMessage = "Right guesses: $rightCount\nWrong guesses: $wrongCount\n\n$comment\n\n"
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Results")
         builder.setMessage("$resultMessage Do you want to play again?")
-        builder.setPositiveButton("I'll play") { dialog, which ->
-            dialog.dismiss()
-            showPickImageSourceDialog()
-        }
-        builder.setNegativeButton("I'll skip") { dialog, which ->
+        builder.setNegativeButton("No") { dialog, which ->
             dialog.dismiss()
             Toast.makeText(this@MainActivity,"Thanks for playing!",Toast.LENGTH_SHORT).show()
+        }
+        builder.setPositiveButton("Yes") { dialog, _ ->
+            dialog.dismiss()
+            showPickImageSourceDialog()
         }
         builder.show()
     }
@@ -342,14 +357,14 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
         val builder = AlertDialog.Builder(this)
         builder.setTitle("WhatsIt")
         builder.setMessage("Is it a $guess ?")
-        builder.setPositiveButton("Yes") { dialog, which ->
-            dialog.dismiss()
-            this.rightCount += 1
-            showResultDialog()
-        }
-        builder.setNegativeButton("No") { dialog, which ->
+        builder.setNegativeButton("No") { dialog, _ ->
             dialog.dismiss()
             this.wrongCount += 1
+            showResultDialog()
+        }
+        builder.setPositiveButton("Yes") { dialog, _ ->
+            dialog.dismiss()
+            this.rightCount += 1
             showResultDialog()
         }
         builder.show()
@@ -362,13 +377,13 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
         val builder = AlertDialog.Builder(this)
         builder.setTitle("WhatsIt")
         builder.setMessage("Camera or photo library?")
-        builder.setPositiveButton("Camera") { dialog, which ->
-            dialog.dismiss()
-            takePicture()
-        }
-        builder.setNegativeButton("Photo Library") { dialog, which ->
+        builder.setNegativeButton("Photo Library") { dialog, _ ->
             dialog.dismiss()
             pickPhotoFromGallery()
+        }
+        builder.setPositiveButton("Camera") { dialog, _ ->
+            dialog.dismiss()
+            takePicture()
         }
         builder.show()
     }
@@ -399,7 +414,7 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
         val fileProvider: Uri =
             FileProvider.getUriForFile(this@MainActivity, BuildConfig.APPLICATION_ID + ".provider", photoFile!!)
         intent.putExtra(MediaStore.EXTRA_OUTPUT, fileProvider)
-        if (intent.resolveActivity(getPackageManager()) != null) {
+        if (intent.resolveActivity(packageManager) != null) {
             startActivityForResult(takePicture, CameraHelper.REQUEST_IMAGE_CAPTURE)
         }
     }
@@ -418,19 +433,27 @@ class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityRecei
     /**
      * Show network connection message
      */
-    private fun showMessage(isConnected: Boolean) {
-        if (!isConnected) {
-            val builder = AlertDialog.Builder(this)
-            builder.setTitle("You are not connected to the network")
-            builder.setMessage("Please turn on WiFi for best performance")
-            builder.setPositiveButton("OK") { dialog, which ->
-                dialog.dismiss()
-            }
-            builder.show()
+    private fun showNoNetworkDialog() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("You are not connected to the network")
+        builder.setMessage("Please turn on WiFi for best performance")
+        builder.setPositiveButton("OK") { dialog, _ ->
+            dialog.dismiss()
         }
+        builder.show()
     }
 
-    override fun onNetworkConnectionChanged(isConnected: Boolean) {
-        showMessage(isConnected)
+    private fun isConnected(): Boolean {
+        var connected = false
+        try {
+            val cm =
+                applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val nInfo: NetworkInfo? = cm.activeNetworkInfo
+            connected = nInfo != null && nInfo.isConnected
+            return connected
+        } catch (e: java.lang.Exception) {
+            Log.e("Connectivity Exception", e.message)
+        }
+        return connected
     }
 }
