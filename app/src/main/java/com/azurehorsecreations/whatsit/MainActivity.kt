@@ -2,19 +2,27 @@ package com.azurehorsecreations.whatsit
 
 import android.Manifest
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.gson.Gson
 import com.ibm.watson.developer_cloud.android.library.camera.CameraHelper
 import com.ibm.watson.developer_cloud.android.library.camera.GalleryHelper
@@ -32,7 +40,7 @@ import java.io.*
 /**
  * Main activity for Whatsit
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), ConnectivityReceiver.ConnectivityReceiverListener, LifecycleObserver {
 
     private var photoFile: File? = null
     private var rightCount = 0
@@ -44,10 +52,65 @@ class MainActivity : AppCompatActivity() {
         private const val PHOTO_FILENAME = "photo.jpg"
     }
 
+    // Application level lifecycle event
+    @OnLifecycleEvent(Lifecycle.Event.ON_START)
+    fun onEnteredForeground() {
+    }
+
+    // Application level lifecycle event
+    @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
+    fun onEnteredBackground() {
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.toolbar_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_replay -> {
+                val i = Intent(
+                    this,
+                    MainActivity::class.java
+                )
+                i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                finish()
+                startActivity(i)
+                return true
+            }
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        registerReceiver(ConnectivityReceiver(),
+            IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
+        )
+
+        ProcessLifecycleOwner.get().getLifecycle().addObserver(this@MainActivity);
+
         checkPermissions()
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+    }
+
+    override fun onPause() {
+        super.onPause()
+    }
+
+    override fun onStop() {
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -62,11 +125,14 @@ class MainActivity : AppCompatActivity() {
             // Gallery image
         } else if (requestCode == GalleryHelper.PICK_IMAGE_REQUEST) {
             if (data != null) {
-                val contentURI = data!!.data
+                val contentURI = data.data
                 bitMap = MediaStore.Images.Media.getBitmap(
                     applicationContext.contentResolver,
                     contentURI
                 )
+            } else {
+                Toast.makeText(this@MainActivity, "No photos were found or selected", Toast.LENGTH_SHORT).show()
+                showPickImageSourceDialog()
             }
         }
 
@@ -86,11 +152,9 @@ class MainActivity : AppCompatActivity() {
                             + grantResults[1])
                             == PackageManager.PERMISSION_GRANTED)) {
                     // Permissions are granted
-//                    Toast.makeText( this@MainActivity, "Permissions granted.", Toast.LENGTH_SHORT).show()
                     showStartDialog()
                 } else {
                     // Permissions are denied
-//                    Toast.makeText(this@MainActivity, "Permissions denied.", Toast.LENGTH_SHORT).show()
                 }
                 return
             }
@@ -101,7 +165,7 @@ class MainActivity : AppCompatActivity() {
      * Calls VisualRecognition service to classify image
      */
     private fun classifyImages(bitMap: Bitmap){
-        var guess = ""
+        var guess: String
 
             val options: IamOptions = IamOptions.Builder()
                 .apiKey(getString(R.string.api_key))
@@ -136,7 +200,7 @@ class MainActivity : AppCompatActivity() {
                         .classifierIds(listOf("default"))
                         .build()
 
-                var result: ClassifiedImages? = null
+                var result: ClassifiedImages?
 
                 // Classify the image
                 GlobalScope.launch(Dispatchers.IO) {
@@ -224,7 +288,6 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             // Permission has already been granted
-//            Toast.makeText(this@MainActivity,"Permissions already granted",Toast.LENGTH_SHORT).show()
             showStartDialog()
         }
     }
@@ -251,7 +314,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showResultDialog() {
         val randomNumber = (0..9).random()
-        var comment = ""
+        var comment: String
         if (rightCount > wrongCount) {
             comment = Constants.WE_WIN[randomNumber]
         } else {
@@ -350,5 +413,24 @@ class MainActivity : AppCompatActivity() {
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         )
         startActivityForResult(pickPhoto, GalleryHelper.PICK_IMAGE_REQUEST)
+    }
+
+    /**
+     * Show network connection message
+     */
+    private fun showMessage(isConnected: Boolean) {
+        if (!isConnected) {
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("You are not connected to the network")
+            builder.setMessage("Please turn on WiFi for best performance")
+            builder.setPositiveButton("OK") { dialog, which ->
+                dialog.dismiss()
+            }
+            builder.show()
+        }
+    }
+
+    override fun onNetworkConnectionChanged(isConnected: Boolean) {
+        showMessage(isConnected)
     }
 }
