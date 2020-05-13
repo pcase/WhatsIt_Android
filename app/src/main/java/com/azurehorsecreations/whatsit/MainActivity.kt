@@ -57,12 +57,12 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
         private const val PHOTO_FILENAME = "photo.jpg"
     }
 
-    // Application level lifecycle event
+    /* Application level lifecycle event */
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onEnteredForeground() {
     }
 
-    // Application level lifecycle event
+    /* Application level lifecycle event */
     @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
     fun onEnteredBackground() {
     }
@@ -129,11 +129,13 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
 
         var bitMap: Bitmap? = null
 
-        // Camera image
+        /* Camera image */
         if (requestCode == CameraHelper.REQUEST_IMAGE_CAPTURE) {
-            bitMap = data!!.extras!!.get("data") as Bitmap
+            if (data != null && data.extras != null) {
+                bitMap = data.extras.get("data") as Bitmap
+            }
 
-            // Gallery image
+            /* Gallery image */
         } else if (requestCode == GalleryHelper.PICK_IMAGE_REQUEST) {
             if (data != null) {
                 val contentURI = data.data
@@ -147,7 +149,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
             }
         }
 
-        // Classify image
+        /* Classify image */
         if (bitMap != null) {
             classifyImages(bitMap)
         }
@@ -162,10 +164,10 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                     ((grantResults[0]
                             + grantResults[1])
                             == PackageManager.PERMISSION_GRANTED)) {
-                    // Permissions are granted
+                    /* Permissions are granted */
                     showStartDialog()
                 } else {
-                    // Permissions are denied
+                    /* Permissions are denied */
                 }
                 return
             }
@@ -189,7 +191,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                 )
 
             try {
-                // Create images stream file
+                /* Create images stream file */
                 val mFile1 = Environment.getExternalStorageDirectory()
                 val fileName = TEMP_FILENAME
                 val mFile2 = File(mFile1, fileName)
@@ -202,7 +204,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                     mFile1.absolutePath.toString() + "/" + fileName
                 val imagesStream: InputStream = FileInputStream(sdPath)
 
-                // Set up classify options
+                /* Set up classify options */
                 val classifyOptions =
                     ClassifyOptions.Builder()
                         .imagesFile(imagesStream)
@@ -213,7 +215,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
 
                 var result: ClassifiedImages?
 
-                // Classify the image
+                /* Classify the image */
 
                 progressBar.visibility = View.VISIBLE
 
@@ -221,8 +223,8 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                    result = service.classify(classifyOptions).execute()
 
                     progressBar.visibility = View.INVISIBLE
-                    
-                    // Parse the results
+
+                    /* Parse the results */
                     val gson = Gson()
                     val json: String = gson.toJson(result)
                     Log.d("json", json)
@@ -235,10 +237,10 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                     val jsonArray2: JSONArray = jsonObject2.getJSONArray("classes")
                     val jsonObject3: JSONObject = jsonArray2.getJSONObject(0)
 
-                    // Get the top guess
+                    /* Get the top guess */
                     guess = jsonObject3.getString("class")
 
-                    // Display the guess in a dialog
+                    /* Display the guess in a dialog */
                     runOnUiThread() {
                         showGuessDialog(guess)
                     }
@@ -258,7 +260,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
      */
     private fun checkPermissions() {
 
-        // Check camera and external storage permissions
+        /* Check camera and external storage permissions */
         if (ContextCompat.checkSelfPermission(this@MainActivity,
                 Manifest.permission.CAMERA) +
             ContextCompat.checkSelfPermission(
@@ -266,13 +268,13 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                 Manifest.permission.WRITE_EXTERNAL_STORAGE)
             != PackageManager.PERMISSION_GRANTED) {
 
-            // Permission is not granted
+            /* Permission is not granted */
             if (ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity,
                     Manifest.permission.CAMERA) ||
                 ActivityCompat.shouldShowRequestPermissionRationale(
                     this@MainActivity, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
 
-                // Show an alert dialog here with request explanation
+                /* Show an alert dialog here with request explanation */
                 val builder =
                     AlertDialog.Builder(this@MainActivity)
                 builder.setMessage(
@@ -295,14 +297,14 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
                 val dialog = builder.create()
                 dialog.show()
             } else {
-                // Request the permission directly
+                /* Request the permission directly */
                 ActivityCompat.requestPermissions(this@MainActivity,
                     arrayOf(Manifest.permission.CAMERA,
                         Manifest.permission.WRITE_EXTERNAL_STORAGE),
                     PERMISSIONS_CODE)
             }
         } else {
-            // Permission has already been granted
+            /* Permission has already been granted */
             showStartDialog()
         }
     }
@@ -312,7 +314,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
      */
     private fun showStartDialog() {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("WhatsIt")
+        builder.setTitle("Whatizit")
         builder.setMessage("I'm an artificial intelligence being. Want to see how smart I am?. You show me a picture, and I'll guess what it is.\n\nWould you like to play?")
         builder.setPositiveButton("Yes") { dialog, _ ->
             dialog.dismiss()
@@ -355,7 +357,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
      */
     private fun showGuessDialog(guess: String) {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("WhatsIt")
+        builder.setTitle("Whatizit")
         builder.setMessage("Is it a $guess ?")
         builder.setNegativeButton("No") { dialog, _ ->
             dialog.dismiss()
@@ -375,7 +377,7 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
      */
     private fun showPickImageSourceDialog() {
         val builder = AlertDialog.Builder(this)
-        builder.setTitle("WhatsIt")
+        builder.setTitle("Whatizit")
         builder.setMessage("Camera or photo library?")
         builder.setNegativeButton("Photo Library") { dialog, _ ->
             dialog.dismiss()
@@ -392,16 +394,16 @@ class MainActivity : AppCompatActivity(), LifecycleObserver {
      *   Returns the File for a photo stored on disk given the fileName
      */
     private fun getPhotoFileUri(fileName: String): File? {
-        // Get safe storage directory for photos
+        /* Get safe storage directory for photos */
         val mediaStorageDir =
             File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), getString(R.string.app_tag))
 
-        // Create the storage directory if it does not exist
+        /* Create the storage directory if it does not exist */
         if (!mediaStorageDir.exists() && !mediaStorageDir.mkdirs()) {
             Log.d(getString(R.string.app_tag), "failed to create directory")
         }
 
-        // Return the file target for the photo based on filename
+        /* Return the file target for the photo based on filename */
         return File(mediaStorageDir.path + File.separator + fileName)
     }
 
